@@ -11,6 +11,11 @@ jobs:
       - name: Check out PinPoint Capture source
         uses: actions/checkout@v4
 
+      - name: Download required PinPoint protocol library
+        run: |
+          git clone --depth 1 https://github.com/PinPoint-Golf/libppcp.git "$GITHUB_WORKSPACE/../libppcp"
+          test -f "$GITHUB_WORKSPACE/../libppcp/Package.swift"
+
       - name: Show Xcode version and install XcodeGen
         run: |
           xcodebuild -version
