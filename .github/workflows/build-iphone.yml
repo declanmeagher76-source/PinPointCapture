@@ -1,0 +1,52 @@
+name: Build unsigned PinPoint Capture IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-iphone:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - name: Check out PinPoint Capture source
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version and install XcodeGen
+        run: |
+          xcodebuild -version
+          brew install xcodegen
+          xcodegen --version
+
+      - name: Generate the Xcode project
+        run: xcodegen generate --spec project.yml
+
+      - name: Compile for physical iPhones without signing
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project PinPointCapture.xcodeproj \
+            -scheme PinPointCapture \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$GITHUB_WORKSPACE/build" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package the unsigned app as an IPA
+        run: |
+          set -eu
+          APP="$GITHUB_WORKSPACE/build/Build/Products/Release-iphoneos/PinPointCapture.app"
+          test -d "$APP"
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/"
+          cd "$RUNNER_TEMP/ipa"
+          zip -qry "$GITHUB_WORKSPACE/PinPointCapture-unsigned.ipa" Payload
+
+      - name: Downloadable build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PinPointCapture-unsigned-IPA
+          path: PinPointCapture-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 7
