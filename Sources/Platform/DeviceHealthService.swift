@@ -14,7 +14,7 @@
 import Foundation
 import UIKit
 import CaptureCore
-
+@MainActor
 public enum DeviceHealthService {
 
     /// The current reading.
