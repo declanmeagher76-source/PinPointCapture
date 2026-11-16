@@ -14,7 +14,6 @@
 import Foundation
 import UIKit
 import CaptureCore
-@MainActor
 public enum DeviceHealthService {
 
     /// The current reading.
@@ -23,12 +22,30 @@ public enum DeviceHealthService {
     /// deliberately not cached: 7.4b exists so a host "reports degradation rather
     /// than silently accepting worse data", and a cached thermal state is exactly
     /// a host being told the device is fine while it throttles.
-    public static func current() -> DeviceHealth {
-        DeviceHealth(thermal: thermalState,
-                     storageFreeBytes: freeBytes,
-                     batteryPercent: batteryPercent,
-                     isCharging: isCharging)
+   
+public static func current() -> DeviceHealth {
+    let battery: (Int?, Bool?)
+
+    if Thread.isMainThread {
+        battery = MainActor.assumeIsolated {
+            (batteryPercent, isCharging)
+        }
+    } else {
+        battery = DispatchQueue.main.sync {
+            MainActor.assumeIsolated {
+                (batteryPercent, isCharging)
+            }
+        }
     }
+
+    return DeviceHealth(
+        thermal: thermalState,
+        storageFreeBytes: freeBytes,
+        batteryPercent: battery.0,
+        isCharging: battery.1
+    )
+}
+
 
     public static var thermalState: ThermalState {
         switch ProcessInfo.processInfo.thermalState {
@@ -57,6 +74,7 @@ public enum DeviceHealthService {
     /// "absence never means zero" rule of `CORE` 5.1 broken in the most
     /// consequential direction, since a host uses this to decide whether a device
     /// will survive a session.
+    @MainActor
     public static var batteryPercent: Int? {
         let device = UIDevice.current
         let wasMonitoring = device.isBatteryMonitoringEnabled
@@ -75,6 +93,7 @@ public enum DeviceHealthService {
     /// ⚠ `.full` counts as charging. It means the cable is in, which is the
     /// question a host is asking — "will this device survive the session" — and
     /// not the narrower one about current flow.
+    @MainActor
     public static var isCharging: Bool? {
         let device = UIDevice.current
         let wasMonitoring = device.isBatteryMonitoringEnabled
